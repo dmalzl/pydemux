@@ -1,1 +1,8 @@
+# directories
 .idea/
+pydemux.egg-info/
+dist/
+test/
+
+# files
+stats.tsv
