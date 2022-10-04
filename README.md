@@ -32,11 +32,24 @@ pydemux paired -b paired_barcodes.tsv -o demux/ -s demux_stats.tsv paired.bam
 ```
 Note that for writing the files to a specific output directory the `/` needs to be included for the `-o/--output_prefix` commandline argument or they will be written to the current work directory. In order to compress the output one can also add the `-gz/--gzip` commandline argument to the command.
 
-# Changing looked up SAMfile tags from which the barcodes are read
+## Changing looked up SAMfile tags from which the barcodes are read
 By default the algorithm looks for the barcode in the `BC` tag of each read in case of `pydemux single` and in the `BC` and `B2` tag of the paired-end reads in case of `pydemux paired`. This can be changed using either the `-t/--bctag` or `-t1/--bc1tag` and/or `-t2/--bc2tag` for `pydemux single` or `pydemux paired` respectively.
 
-# Speeding up processing
+## Speeding up processing
 In order to speed up demultiplexing the algorithm can be run concurrently using the `-p/--processes` argument.
 
-# Optimizing yield
+## Optimizing yield
 As with every sequencing-based data type, the barcodes are also prone to include sequencing errors. In order to optimize the read yield for each sample the algorithm allows for a given number of mismatches between the true and the sequenced barcodes which can be set with `-m/--mismatches`. By default only exact matches will be assigned. If you want to allow for one or more mismatches please make sure that the number of allowed mismatches does not exceed half of the minimum pairwise Hamming distance of all true barcodes minus 1 (i.e. `min(pairwise_hamming_distance(true_barcodes)) // 2 - 1`) since otherwise reads might be wrongly assigned
+
+# Barcode file format
+The barcode file is a simple tab-separated file containing one sample and its associated barcodes per line. In case of `pydemux single` each line consists of one barcode and one sample name. e.g.
+
+| barcode | sample_name |
+|---|---|
+| ACGTCGTA | sample_1 |
+
+In case of `pydemux paired` the file contains two barcodes and one sample name per line. e.g.
+
+| barcode1 | barcode2 | sample_name |
+|---|---|
+| ACGTCGTA | CGTAGGAT | sample_1 |
