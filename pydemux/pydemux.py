@@ -25,15 +25,15 @@ def main():
         args.gzip
     )
 
-    if args.nprocesses > 1:
+    if args.processes > 1:
         write_lock = mp.Lock()
         write_queue = mp.Queue(
-            maxsize = MAXQUEUESIZE(args.nprocesses)
+            maxsize = MAXQUEUESIZE(args.processes)
         )
         result_queue = mp.Queue()
 
         write_processes = []
-        for i in range(args.nprocesses):
+        for i in range(args.processes - 1):
             write_processes.append(
                 mp.Process(
                     target = parallel_writer,
@@ -62,7 +62,7 @@ def main():
                 r2 = infile.__next__() if args.command == 'paired' else None
 
             except StopIteration:
-                if args.nprocesses > 1:
+                if args.processes > 1:
                     write_queue.put(read_list)
                     write_queue.put([])
 
@@ -102,7 +102,7 @@ def main():
             reads_in_buffer += 1
 
             if reads_in_buffer == BUFFERSIZE:
-                if args.nprocesses > 1:
+                if args.processes > 1:
                     write_queue.put(read_list)
 
                 else:
@@ -126,7 +126,7 @@ def main():
                     'processed %i read pairs' % total_number_of_reads
                 )
 
-    if args.nprocesses > 1:
+    if args.processes > 1:
         logging.info('waiting for write processes to finish')
         for process in write_processes:
             process.join()
