@@ -51,5 +51,5 @@ The barcode file is a simple tab-separated file containing one sample and its as
 In case of `pydemux paired` the file contains two barcodes and one sample name per line. e.g.
 
 | barcode1 | barcode2 | sample_name |
-|---|---|
+|---|---|---|
 | ACGTCGTA | CGTAGGAT | sample_1 |
