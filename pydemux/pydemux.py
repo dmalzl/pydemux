@@ -1,24 +1,25 @@
 import pysam
 import logging
 import multiprocessing as mp
-from pydemux.parser import main_arg_parser
-from pydemux.core import (
+from .argparser import main_arg_parser
+from .core import (
     extract_barcodes,
     parallel_writer,
     sequential_writer,
     initialize
 )
-from pydemux.utils import *
+from .utils import *
 
 
 def main():
+    set_log_level(True)
     parser = main_arg_parser()
     args = parser.parse_args()
 
     logging.info('initializing...')
     stats_counter, out_handles, names, patterns, reg_exprs = initialize(
         args.barcodes,
-        args.subparser_name,
+        args.command,
         args.output_prefix,
         args.mismatches,
         args.gzip
@@ -27,7 +28,7 @@ def main():
     if args.nprocesses > 1:
         write_lock = mp.Lock()
         write_queue = mp.Queue(
-            maxsize = MAXQUEUESIZE(args.nprocessors)
+            maxsize = MAXQUEUESIZE(args.nprocesses)
         )
         result_queue = mp.Queue()
 
@@ -52,14 +53,13 @@ def main():
             write_processes[-1].start()
 
     logging.info('demultiplexing...')
-
     with pysam.AlignmentFile(args.input, 'rb', check_sq = False) as infile:
         total_number_of_reads, reads_in_buffer = 0, 0
         read_list = []
         while True:
             try:
                 r1 = infile.__next__()
-                r2 = infile.__next__() if args.subparser_name == 'paired' else None
+                r2 = infile.__next__() if args.command == 'paired' else None
 
             except StopIteration:
                 if args.nprocesses > 1:
@@ -84,11 +84,11 @@ def main():
             barcodes = extract_barcodes(
                 r1,
                 r2,
-                args.bc1tag,
-                args.bc2tag if args.subparser_name == 'paired' else None
+                args.bc1tag if args.command == 'paired' else args.bctag,
+                args.bc2tag if args.command == 'paired' else None
             )
 
-            if args.subparser_name == 'single':
+            if args.command == 'single':
                 reads = (r1.to_dict(),)
                 barcodes = barcodes[:1]
             else:
@@ -126,14 +126,12 @@ def main():
                     'processed %i read pairs' % total_number_of_reads
                 )
 
-
     if args.nprocesses > 1:
-        logging.info('waiting for writerprocess to finish')
+        logging.info('waiting for write processes to finish')
         for process in write_processes:
             process.join()
 
         del write_queue, write_processes
-
 
         logging.info('retrieving demux statistics')
         result_queue.put({})
@@ -147,15 +145,11 @@ def main():
                 break
 
     logging.info('writing statsfile...')
-    with open(args.stats, 'w') as sfile:
+    with open(args.statistics, 'w') as sfile:
         sfile.write('file\t#readpairs\n')
 
         for key, count in stats_counter.items():
             sfile.write('\t'.join([names[key], str(count)]) + '\n')
-
-    for handles in out_handles.values():
-        for handle in handles:
-            handle.close()
 
     logging.info('done')
 

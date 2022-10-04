@@ -1,5 +1,6 @@
 import argparse as ap
 
+
 def demux_arg_parser(subcommand: str) -> ap.ArgumentParser:
     parser = ap.ArgumentParser(add_help = False)
     default = parser.add_argument_group('default')
@@ -37,8 +38,7 @@ def generic_arg_parser() -> ap.ArgumentParser:
         metavar='input_bam',
         help='''
             BAM formatted file containing either single or paired-end reads (the latter is assumed to be interleaved)
-        ''',
-        required=True
+        '''
     )
     required.add_argument(
         '--barcodes',
@@ -81,6 +81,7 @@ def generic_arg_parser() -> ap.ArgumentParser:
     )
     default.add_argument(
         '--gzip',
+        '-gz',
         action='store_true',
         default=False,
         help='flag indicating if written fastq files should be gzipped. If set files are gzipped.'
@@ -107,6 +108,7 @@ def main_arg_parser() -> ap.ArgumentParser:
         pydemux single -h
         
         pydemux paired -h
+        
     ''',
     epilog = '''
         example usages:
@@ -138,7 +140,6 @@ def main_arg_parser() -> ap.ArgumentParser:
             condition (i.e. number of mismatches between sequenced and true barcode is larger than --mismatches)
             are written to a separate ambiguous.fq file 
         ''',
-        add_help = False,
         usage = '%(prog)s -s stats.tsv -b barcodes.tsv single_end.bam'
     )
 
@@ -159,7 +160,6 @@ def main_arg_parser() -> ap.ArgumentParser:
             according to this condition (i.e. number of mismatches between sequenced and true barcode is larger than 
             --mismatches) are written to a separate ambiguous_[12].fq file 
         ''',
-        add_help=False,
         usage='%(prog)s -s stats.tsv -b barcodes.tsv single_end.bam'
     )
 

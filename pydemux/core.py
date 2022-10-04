@@ -2,6 +2,7 @@ import logging
 import regex
 import pysam
 import gzip
+import os
 import multiprocessing as mp
 from typing import IO, Union
 from io import StringIO
@@ -10,7 +11,7 @@ from io import StringIO
 class KeyMatcher:
     def __init__(
         self,
-        regular_expressions: list[tuple[regex]],
+        regular_expressions: list[Union[tuple[regex], tuple[regex, regex]]],
         patterns: dict[regex, str]
     ):
         self.regex = regular_expressions
@@ -67,60 +68,69 @@ def bam_to_fq(
     return '\n'.join([name, seq, '+', qual]) + '\n'
 
 
-def all_match(barcodes, reg_exprs):
+def all_match(
+    barcodes: Union[tuple[str], tuple[str, str]],
+    reg_exprs: list[Union[tuple[regex], tuple[regex, regex]]]
+) -> bool:
     return all(re.match(bc) for re, bc in zip(reg_exprs, barcodes))
+
+
+def split_dir_and_prefix(outfile_prefix: str) -> tuple[str, str]:
+    tmp = outfile_prefix.split('/')
+    return '/'.join(tmp[:-1]) + '/', tmp[-1]
 
 
 def instantiate_objects(
     fields: list[str],
     outfile_prefix: str,
     subcommand: str,
-    mode: str,
     mismatches: int,
-    gzipped: bool
-) -> tuple[list[str], tuple[IO], tuple[regex], str]:
+    gzipped: bool,
+    mock: bool
+) -> tuple[list[str], Union[tuple[str], tuple[str, str]], tuple[regex], str]:
     out_name = fields[-1]
+    out_dir, out_prefix = split_dir_and_prefix(outfile_prefix)
+
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    join_list = [out_prefix] if out_prefix else []
+    suffix = '.gz' if gzipped else ''
     if subcommand == 'single':
-        barcodes = fields[:1]
-        handles = (
-            open(
-                '_'.join([outfile_prefix, out_name, '.fq' if not gzipped else '.fq.gz']),
-                mode
-            ),
-        )
-        res = (
-            regex.compile('(' + fields[0] + '){s<=' + str(mismatches) + '}'),
-        )
+        if mock:
+            barcodes = ['ambiguous']
+            handles = (
+                out_dir + '_'.join(join_list + ['ambiguous']) + '.fq' + suffix,
+            )
+            res = None
+
+        else:
+            barcodes = fields[:1]
+            handles = (
+                out_dir + '_'.join(join_list + [out_name]) + '.fq' + suffix,
+            )
+            res = (
+                regex.compile('(' + fields[0] + '){s<=' + str(mismatches) + '}'),
+            )
 
     elif subcommand == 'paired':
-        barcodes = fields[:2]
-        handles = (
-            open(
-                '_'.join([outfile_prefix, out_name, '1.fq' if not gzipped else '1.fq.gz']),
-                mode
-            ),
-            open(
-                '_'.join([outfile_prefix, out_name, '2.fq' if not gzipped else '2.fq.gz']),
-                mode
+        if mock:
+            barcodes = ['ambiguous']
+            handles = (
+                out_dir + '_'.join(join_list + ['ambiguous', '1.fq' + suffix]),
+                out_dir + '_'.join(join_list + ['ambiguous', '2.fq' + suffix])
             )
-        )
-        res = tuple(
-            [regex.compile('(' + b + '){s<=' + str(mismatches) + '}') for b in fields[:2]]
-        )
+            res = None
 
-    elif subcommand == 'mock':
-        barcodes = ['ambiguous']
-        handles = (
-            open(
-                '_'.join([outfile_prefix, 'ambiguous', '1.fq' if not gzipped else '1.fq.gz']),
-                mode
-            ),
-            open(
-                '_'.join([outfile_prefix, 'ambiguous', '2.fq' if not gzipped else '2.fq.gz']),
-                mode
+        else:
+            barcodes = fields[:2]
+            handles = (
+                out_dir + '_'.join(join_list + [out_name, '1.fq' + suffix]),
+                out_dir + '_'.join(join_list + [out_name, '2.fq' + suffix])
             )
-        )
-        res = None
+            res = tuple(
+                [regex.compile('(' + b + '){s<=' + str(mismatches) + '}') for b in fields[:2]]
+            )
 
     return barcodes, handles, res, out_name
 
@@ -134,7 +144,6 @@ def initialize(
 ) -> tuple[dict[str, int], dict[str, tuple[IO]], dict[str, str], dict[regex, str], list[tuple[regex]]]:
     stat_counter, names = {}, {}
     reg_exprs, out_handles, patterns = [], {}, {}
-    mode = 'w' if not gzipped else 'wb'
     with open(barcode_file, 'r') as file:
         for line in file:
             fields = line.rstrip().split('\t')
@@ -142,9 +151,9 @@ def initialize(
                 fields,
                 outfile_prefix,
                 subcommand,
-                mode,
                 mismatches,
-                gzipped
+                gzipped,
+                False
             )
 
             key = '+'.join(barcodes)
@@ -159,10 +168,10 @@ def initialize(
     barcodes, handles, _, out_name = instantiate_objects(
         ['ambiguous'],
         outfile_prefix,
-        'mock',
-        mode,
+        subcommand,
         mismatches,
-        gzipped
+        gzipped,
+        True
     )
     # there is actually no barcodes here just the ambiguous reads file
     key = '+'.join(barcodes)
@@ -174,8 +183,8 @@ def initialize(
 
 
 def parallel_writer(
-    out_handles: dict[str, tuple[IO]],
-    writer_queue: mp.Queue,
+    out_handles: dict[str, Union[tuple[str], tuple[str, str]]],
+    write_queue: mp.Queue,
     result_queue: mp.Queue,
     reg_exprs: list[tuple[regex]],
     patterns: dict[regex, str],
@@ -197,7 +206,7 @@ def parallel_writer(
         )
 
     while True:
-        read_list = writer_queue.get()
+        read_list = write_queue.get()
         if read_list:
 
             if verbose:
@@ -226,7 +235,7 @@ def parallel_writer(
 
                 else:
                     for stream, read, read_number in zip(
-                        file_chunks['unknown'],
+                        file_chunks['ambiguous'],
                         reads,
                         [1, 2]
                     ):
@@ -251,18 +260,20 @@ def parallel_writer(
                 )
 
             for key, streams in file_chunks.items():
-                for filehandle, stream in zip(
+                for filename, stream in zip(
                     out_handles[key],
                     streams
                 ):
                     try:
                         if gzipped:
+                            filehandle = open(filename, 'ab')
                             block = gzip.compress(
                                 bytes(stream.getvalue(), 'utf-8'),
                                 compresslevel = 9
                             )
 
                         else:
+                            filehandle = open(filename, 'a')
                             block = stream.getvalue()
 
                         filehandle.write(block)
@@ -270,6 +281,7 @@ def parallel_writer(
                         # otherwise result in not all reads being written
                         # to files
                         filehandle.flush()
+                        filehandle.close()
 
                     except OSError as e:
                         logging.info(repr(e))
@@ -284,7 +296,7 @@ def parallel_writer(
                     'writer-{0} has nothing left to process'.format(process_number)
                 )
 
-            writer_queue.put([])
+            write_queue.put([])
             break
 
     for streams in file_chunks.values():
@@ -300,7 +312,7 @@ def parallel_writer(
 
 
 def sequential_writer(
-    out_handles: dict[str, tuple[IO]],
+    out_handles: dict[str, Union[tuple[str], tuple[str, str]]],
     reg_exprs: list[tuple[regex]],
     patterns: dict[regex, str],
     read_list: list[tuple[tuple[str, str], tuple[dict[str, str], dict[str, str]]]],
@@ -334,7 +346,7 @@ def sequential_writer(
 
         else:
             for stream, read, read_number in zip(
-                file_chunks['unknown'],
+                file_chunks['ambiguous'],
                 reads,
                 [1, 2]
             ):
@@ -348,18 +360,20 @@ def sequential_writer(
             counter['ambiguous'] += 1
 
     for key, streams in file_chunks.items():
-        for filehandle, stream in zip(
+        for filename, stream in zip(
             out_handles[key],
             streams
         ):
             try:
                 if gzipped:
+                    filehandle = open(filename, 'ab')
                     block = gzip.compress(
                         bytes(stream.getvalue(), 'utf-8'),
                         compresslevel = 9
                     )
 
                 else:
+                    filehandle = open(filename, 'a')
                     block = stream.getvalue()
 
                 filehandle.write(block)
