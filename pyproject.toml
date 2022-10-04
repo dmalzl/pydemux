@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pydemux"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python package for demultiplexing raw sequencing reads in SAM/BAM format"
 readme = "README.md"
 authors = [{ name = "Daniel Malzl", email = "daniel@menchelab.com" }]
