@@ -2,6 +2,7 @@
 ![pypi](https://img.shields.io/badge/pypi-v1.0.1-blue)
 ![python-version](https://img.shields.io/badge/Python->=3.9-blue)
 ![stable-version](https://img.shields.io/badge/version-1.0.1-blue)
+
 An easy to use python tool for fast demultiplexing of SAM/BAM formated raw sequence data
 
 # Installation
