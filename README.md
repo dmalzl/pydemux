@@ -3,7 +3,7 @@
 ![python-version](https://img.shields.io/badge/Python->=3.9-blue)
 ![stable-version](https://img.shields.io/badge/version-1.0.1-blue)
 
-An easy to use python tool for fast demultiplexing of SAM/BAM formated raw sequence data
+An easy to use python tool for fast demultiplexing of SAM/BAM formated raw sequence data into individual FASTQ files.
 
 # Installation
 ```
@@ -24,7 +24,7 @@ pydemux -h
 ```
 
 # Basic usage
-pydemux can be used to demultiplex sequence data in SAM/BAM format for either single or paired-end reads (in case of paired-end the reads have to be interleaved). Basic command for this are listed below (you can test these using the files in the data directory)
+pydemux can be used to demultiplex sequence data in SAM/BAM format for either single or paired-end reads into FASTQ files(in case of paired-end the reads have to be interleaved). Basic command for this are listed below (you can test these using the files in the data directory)
 ```
 pydemux single -b single_barcodes.tsv -o demux/ -s demux_stats.tsv single.bam
 ```
